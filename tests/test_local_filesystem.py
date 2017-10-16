@@ -1,4 +1,4 @@
-"""Eatfirst FileSystem tests."""
+"""EatFirst FileSystem tests."""
 
 import os
 from io import StringIO

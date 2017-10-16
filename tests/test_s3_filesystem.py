@@ -1,4 +1,4 @@
-"""Eatfirst FileSystem tests."""
+"""EatFirst FileSystem tests."""
 from io import StringIO
 from uuid import uuid4
 

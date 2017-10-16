@@ -1,4 +1,4 @@
-"""Eatfirst FileSystem for S3."""
+"""EatFirst file system for S3."""
 
 from autorepr import autorepr
 from fs.path import iteratepath
@@ -8,7 +8,7 @@ from fs.s3fs import S3FS
 from fs.s3fs import thread_local
 
 
-class EFS3(S3FS):
+class EatFirstS3(S3FS):
     """Extension of S3FS class, fixing it to work with python 3k."""
 
     def __init__(self, bucket, prefix='', aws_access_key=None, aws_secret_key=None, separator='/',
@@ -46,7 +46,7 @@ class EFS3(S3FS):
         self._tlocal = thread_local()
         super(S3FS, self).__init__(thread_synchronize=thread_synchronize)
 
-    __repr__ = autorepr(['_bucket_name', '_access_keys[0]'])
+    __repr__ = autorepr([], bucket=lambda self: self._bucket_name, key=lambda self: self._access_keys[0])
 
     def _s3path(self, path):
         """Get the absolute path to a file stored in S3."""

@@ -4,12 +4,12 @@ import urllib.parse
 from autorepr import autorepr
 from flask import current_app
 
-from .efosfs import EFOSFS
-from .efs3 import EFS3
+from .eatfirst_osfs import EatFirstOSFS
+from .eatfirst_s3 import EatFirstS3
 
 
 class EFS:
-    """The Eatfirst FileSystem."""
+    """The EatFirst File system."""
 
     def __init__(self, storage='local', *args, **kwargs):
         """The constructor method of the filesystem abstraction."""
@@ -17,10 +17,10 @@ class EFS:
         self.current_file = ''
         self.storage = storage
         if storage.lower() == 'local':
-            self.home = EFOSFS(current_app.config['LOCAL_STORAGE'], create=True, *args, **kwargs)
+            self.home = EatFirstOSFS(current_app.config['LOCAL_STORAGE'], create=True, *args, **kwargs)
         elif storage.lower() == 's3':
-            self.home = EFS3(current_app.config['S3_BUCKET'], aws_access_key=current_app.config['AWS_ACCESS_KEY'],
-                             aws_secret_key=current_app.config['AWS_SECRET_KEY'], *args, **kwargs)
+            self.home = EatFirstS3(current_app.config['S3_BUCKET'], aws_access_key=current_app.config['AWS_ACCESS_KEY'],
+                                   aws_secret_key=current_app.config['AWS_SECRET_KEY'], *args, **kwargs)
         else:
             raise RuntimeError('{} does not support {} storage'.format(self.__class__.__name__, storage))
 
@@ -50,7 +50,7 @@ class EFS:
         else:
             self.home.setcontents(path, content, *args, **kwargs)
 
-        if isinstance(self.home, EFS3) and content_type is not None:
+        if isinstance(self.home, EatFirstS3) and content_type is not None:
             # AWS is guessing the content type wrong. Bellow is our dirty fix for that.
             key = self.home._s3bukt.get_key(path)
             key.copy(key.bucket, key.name, preserve_acl=True, metadata={'Content-Type': content_type})
@@ -105,7 +105,7 @@ class EFS:
         :param with_cdn: specify if the url should return with the cdn information, only used for images.
         """
         if not self.home.haspathurl(path):
-            if isinstance(self.home, EFOSFS):
+            if isinstance(self.home, EatFirstOSFS):
                 return path
             raise PermissionError('The file {} has no defined url'.format(path))
 
