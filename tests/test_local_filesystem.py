@@ -34,6 +34,7 @@ def test_read_file(app, delete_temp_files):
     uploaded_content = efs.open(TEST_FILE)
     content = uploaded_content.read()
     assert content == RANDOM_DATA.read()
+    uploaded_content.close()
 
 
 def test_remove_file(app, delete_temp_files):
