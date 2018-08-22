@@ -1,7 +1,7 @@
 """EatFirst FileSystem tests."""
 
 import os
-from io import StringIO
+from io import BytesIO
 
 from faker import Faker
 from flask import current_app
@@ -10,7 +10,7 @@ from efs import EFS
 
 fake = Faker()
 TEST_FILE = 'test_file.txt'
-RANDOM_DATA = StringIO(fake.sha256())
+RANDOM_DATA = BytesIO(fake.sha256().encode())
 
 
 def test_create_file(app, delete_temp_files):

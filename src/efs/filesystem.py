@@ -1,7 +1,7 @@
 """The file system abstraction."""
 import urllib.parse
+from io import BytesIO
 
-from autorepr import autorepr
 from flask import current_app
 
 from .eatfirst_osfs import EatFirstOSFS
@@ -11,51 +11,62 @@ from .eatfirst_s3 import EatFirstS3
 class EFS:
     """The EatFirst File system."""
 
-    def __init__(self, storage='local', *args, **kwargs):
+    def __init__(self, *args, storage="local", **kwargs):
         """The constructor method of the filesystem abstraction."""
-        self.separator = kwargs.get('separator', '/')
-        self.current_file = ''
-        self.storage = storage
-        if storage.lower() == 'local':
-            self.home = EatFirstOSFS(current_app.config['LOCAL_STORAGE'], create=True, *args, **kwargs)
-        elif storage.lower() == 's3':
-            self.home = EatFirstS3(current_app.config['S3_BUCKET'], aws_access_key=current_app.config['AWS_ACCESS_KEY'],
-                                   aws_secret_key=current_app.config['AWS_SECRET_KEY'], *args, **kwargs)
+        self.separator = kwargs.get("separator", "/")
+        self.current_file = ""
+        if storage.lower() == "local":
+            self.home = EatFirstOSFS(current_app.config["LOCAL_STORAGE"], create=True, *args, **kwargs)
+        elif storage.lower() == "s3":
+            self.home = EatFirstS3(
+                current_app.config["S3_BUCKET"],
+                # We always called make_public after upload, with this we do one less call to aws API
+                acl="public-read",
+                *args,
+                **kwargs
+            )
         else:
-            raise RuntimeError('{} does not support {} storage'.format(self.__class__.__name__, storage))
+            raise RuntimeError("{} does not support {} storage".format(self.__class__.__name__, storage))
 
-    __repr__ = autorepr(['storage', 'separator', 'home'])
-
-    def make_public(self, path):
-        """Make sure a file is public."""
-        if hasattr(self.home, 'makepublic'):
-            self.home.makepublic(path)
-
-    def upload(self, path, content, async_=False, content_type=None, *args, **kwargs):
+    def upload(self, path, content, content_type=None):
         """Upload a file and return its size in bytes.
 
         :param path: the relative path to file, including filename.
         :param content: the content to be written.
-        :param async_: Create a thread to send the data in case True is sent.
         :param content_type: Enforce content-type on destination.
         :return: size of the saved file.
         """
         path_list = path.split(self.separator)
         if len(path_list) > 1:
-            self.home.makedir(self.separator.join(path_list[:-1]), recursive=True, allow_recreate=True)
-        self.home.createfile(path, wipe=False)
+            self.home.makedirs(self.separator.join(path_list[:-1]), recreate=True)
+        self.home.create(path, wipe=False)
 
-        if async_:
-            self.home.setcontents_async(path, content, *args, **kwargs).wait()
-        else:
-            self.home.setcontents(path, content, *args, **kwargs)
+        # s3fs' API sucks and we have to set the content type on construction
+        # assuming this will always be called in a synchronous way, we just override the inner variable (O.o) and
+        # restore it back
+        content_type_key = "ContentType"
+        has_upload_args = hasattr(self.home, "upload_args")
+        old_content_type_exists = False
+        old_content_type = None
 
-        if isinstance(self.home, EatFirstS3) and content_type is not None:
-            # AWS is guessing the content type wrong. Bellow is our dirty fix for that.
-            key = self.home._s3bukt.get_key(path)
-            key.copy(key.bucket, key.name, preserve_acl=True, metadata={'Content-Type': content_type})
+        if has_upload_args and content_type:
+            old_content_type_exists = content_type_key in self.home.upload_args
+            old_content_type = self.home.upload_args.pop(content_type_key, None)
+            self.home.upload_args[content_type_key] = content_type
 
-        self.make_public(path)
+        if isinstance(content, BytesIO):
+            # TODO: The underlying library only expects bytes instead of verifying what is coming
+            # maybe we should send a pr as this can result in more memory usage
+            content = content.read()
+        if isinstance(content, str):
+            content = content.encode()
+        self.home.setbytes(path, content)
+
+        if has_upload_args:
+            if old_content_type_exists:
+                self.home.upload_args[content_type_key] = old_content_type
+            else:
+                self.home.upload_args.pop(content_type_key, None)
 
     def open(self, path, *args, **kwargs):
         """Open a file and return a file pointer.
@@ -63,11 +74,14 @@ class EFS:
         :param path: the relative path to file, including filename.
         :return: a pointer to the file.
         """
+        # Maybe we should store paths as relative paths to avoid having to do this
+        root_path = getattr(self.home, "_root_path", None)
+        path = path.replace(root_path, "") if root_path else path
         if not self.home.exists(path):
             exp = FileNotFoundError()
             exp.filename = path
             raise exp
-        return self.home.safeopen(path, *args, **kwargs)
+        return self.home.openbin(path, *args, **kwargs)
 
     def remove(self, path):
         """Remove a file or folder.
@@ -75,7 +89,7 @@ class EFS:
         :param path: the relative path to file, including filename.
         """
         if self.home.isdir(path):
-            self.home.removedir(path, force=True)
+            self.home.removetree(path)
         else:
             self.home.remove(path)
 
@@ -83,9 +97,9 @@ class EFS:
         """Rename a file.
 
         :param path: the relative path to file, including filename.
-        :param path: the relative path to new file, including new filename.
+        :param new_path: the relative path to new file, including new filename.
         """
-        self.home.rename(path, new_path)
+        self.home.move(path, new_path)
 
     def move(self, path, new_path):
         """Move a file.
@@ -95,7 +109,7 @@ class EFS:
         """
         path_list = new_path.split(self.separator)
         if len(path_list) > 1:
-            self.home.makedir(self.separator.join(path_list[:-1]), recursive=True, allow_recreate=True)
+            self.home.makedir(self.separator.join(path_list[:-1]), recreate=True)
         self.home.move(path, new_path, overwrite=True)
 
     def file_url(self, path, with_cdn=True):
@@ -104,19 +118,15 @@ class EFS:
         :param path: the relative path to file, including filename.
         :param with_cdn: specify if the url should return with the cdn information, only used for images.
         """
-        if not self.home.haspathurl(path):
-            if isinstance(self.home, EatFirstOSFS):
-                return path
-            raise PermissionError('The file {} has no defined url'.format(path))
-
-        url = self.home.getpathurl(path)
-        if current_app.config.get('S3_CDN_URL', None) and with_cdn:
+        url = self.home.geturl(path)
+        if current_app.config.get("S3_CDN_URL", None) and with_cdn:
             parsed_url = urllib.parse.urlparse(url)
-            url = url.replace(parsed_url.hostname, current_app.config['S3_CDN_URL'])
-        url = url.replace('http://', 'https://')
+            url = url.replace(parsed_url.hostname, current_app.config["S3_CDN_URL"])
+        url = url.split("?")[0]  # Remove any trace of query string
+        url = url.replace("http://", "https://")
         return url
 
     @classmethod
     def get_filesystem(cls):
         """Return an instance of the filesystem abstraction."""
-        return cls(storage=current_app.config['DEFAULT_STORAGE'])
+        return cls(storage=current_app.config["DEFAULT_STORAGE"])
