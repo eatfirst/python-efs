@@ -37,9 +37,9 @@ Overview
     :alt: PyPI Package latest release
     :target: https://pypi.python.org/pypi/efs
 
-.. |commits-since| image:: https://img.shields.io/github/commits-since/eatfirst/python-efs/v0.1.1.svg
+.. |commits-since| image:: https://img.shields.io/github/commits-since/eatfirst/python-efs/v0.2.0.svg
     :alt: Commits since latest release
-    :target: https://github.com/eatfirst/python-efs/compare/v0.1.1...master
+    :target: https://github.com/eatfirst/python-efs/compare/v0.2.0...master
 
 .. |wheel| image:: https://img.shields.io/pypi/wheel/efs.svg
     :alt: PyPI Wheel

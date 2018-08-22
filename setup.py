@@ -24,7 +24,7 @@ def read(*names, **kwargs):
 
 setup(
     name='efs',
-    version='0.1.1',
+    version='0.2.0',
     license='MIT license',
     description='A simple wrapper around fs to work with flask and switch between local and s3fs',
     long_description='%s\n%s' % (
