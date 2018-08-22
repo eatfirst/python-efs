@@ -63,9 +63,9 @@ setup(
     ],
     install_requires=[
         'Flask',
-        'fs >= 0.5.4, < 2.0',
+        'fs >= 2.0, < 3.0',
+        'fs-s3fs >= 1.0, < 2.0',
         'autorepr',
-        'boto'
     ],
     extras_require={
         # eg:
