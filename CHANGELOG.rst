@@ -2,6 +2,11 @@
 Changelog
 =========
 
+0.2.1 (2018-08-23)
+------------------
+
+* Fix s3 repr `#5 <https://github.com/eatfirst/python-efs/pull/5>`_.
+
 0.2.0 (2018-08-22)
 ------------------
 
